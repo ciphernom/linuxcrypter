@@ -3,34 +3,6 @@
 #include <string.h>
 #include <stdlib.h>
 
-/**
- * decrypt_data
- *
- * Decrypts input ciphertext using the provided EncryptionContext.
- * Data is processed in 16-byte blocks using SIMD acceleration.
- * After decryption the PKCS#7 padding is verified and removed.
- *
- * Steps:
- *  initialization:
- *      - Validate parameters.
- *      - Set pointer to start of ciphertext.
- *  main_loop:
- *      - For CBC mode:
- *            For each block, decrypt using block_decrypt(), then XOR with the
- *            previous ciphertext (or IV for the first block).
- *        - For CTR mode:
- *            Generate keystream blocks and XOR with ciphertext.
- *  cleanup:
- *      - Verify and remove PKCS#7 padding from the final block.
- *
- * Edge Cases:
- *  - Ciphertext length must be a multiple of 16.
- *  - Invalid padding triggers an error and clears sensitive memory.
- *
- * @param ctx     Pointer to EncryptionContext.
- * @param buffer  Pointer to DataBuffer containing ciphertext.
- * @return        lc_error_t status.
- */
 lc_error_t decrypt_data(EncryptionContext *ctx, DataBuffer *buffer) {
     if (!ctx || !buffer || !buffer->data || (buffer->length % 16 != 0)) {
         return LC_GENERAL_ERROR;
@@ -38,8 +10,8 @@ lc_error_t decrypt_data(EncryptionContext *ctx, DataBuffer *buffer) {
     
     size_t total_blocks = buffer->length / 16;
     uint8_t *in_ptr = buffer->data;
-    __m128i prev_cipher;  /* For CBC mode */
-    __m128i counter;      /* For CTR mode */
+    __m128i prev_cipher = _mm_setzero_si128();  /* For CBC mode */
+    __m128i counter = _mm_setzero_si128();      /* For CTR mode */
     
     if (ctx->mode == 1) {
         prev_cipher = _mm_load_si128((const __m128i*)ctx->iv);
@@ -54,11 +26,12 @@ lc_error_t decrypt_data(EncryptionContext *ctx, DataBuffer *buffer) {
         __m128i decrypted;
         
         if (ctx->mode == 1) {
-            decrypted = block_decrypt(cipher_block, ctx->key);
+            /* CBC mode */
+            decrypted = block_decrypt(cipher_block, &ctx->key_schedule);
             decrypted = _mm_xor_si128(decrypted, prev_cipher);
             prev_cipher = cipher_block;
         } else {  /* CTR mode */
-            __m128i keystream = block_encrypt(counter, ctx->key);
+            __m128i keystream = block_encrypt(counter, &ctx->key_schedule);
             decrypted = _mm_xor_si128(cipher_block, keystream);
             uint64_t *ctr_ptr = (uint64_t*)&counter;
             ctr_ptr[0] = ctr_ptr[0] + 1;
@@ -67,19 +40,29 @@ lc_error_t decrypt_data(EncryptionContext *ctx, DataBuffer *buffer) {
         in_ptr += 16;
     }
     
-    /* Remove and verify PKCS#7 padding from the final block */
+    /* Verify and remove PKCS#7 padding */
     uint8_t *last_block = buffer->data + buffer->length - 16;
     uint8_t pad_len = last_block[15];
+    
+    /* Check padding validity */
     if (pad_len == 0 || pad_len > 16) {
         memset(buffer->data, 0, buffer->length);
+        __asm__ volatile("" : : "r"(buffer->data) : "memory");
         return LC_PADDING_ERROR;
     }
+    
+    /* Use constant-time comparison for padding verification */
+    uint8_t valid = 1;
     for (int i = 16 - pad_len; i < 16; i++) {
-        if (last_block[i] != pad_len) {
-            memset(buffer->data, 0, buffer->length);
-            return LC_PADDING_ERROR;
-        }
+        valid &= (last_block[i] == pad_len);
     }
+    
+    if (!valid) {
+        memset(buffer->data, 0, buffer->length);
+        __asm__ volatile("" : : "r"(buffer->data) : "memory");
+        return LC_PADDING_ERROR;
+    }
+    
     buffer->length = buffer->length - pad_len;
     return LC_SUCCESS;
 }
