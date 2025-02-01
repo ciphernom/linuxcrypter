@@ -146,9 +146,8 @@ While this implementation uses strong cryptographic primitives and hardware acce
 
 ## About SpecForge
 
-SpecForge is an experimental system that transforms YAML-based specifications into concrete implementations via Large Language Models. While the initial version of LinuxCrypter was developed using SpecForge, the current version (v2.0.0) has evolved through manual review and security-focused improvements.
+SpecForge is an experimental system that transforms YAML-based specifications into concrete implementations via Large Language Models. While the initial version of LinuxCrypter was developed using SpecForge, the current version (v2.0.0) is what Claude came up with after its review. 
 
-The LinuxCrypter project demonstrates both the potential and limitations of specification-driven development using LLMs. The initial implementation, while functional, required significant security improvements and expert review to reach a more secure state. This journey from generated code to hardened implementation provides valuable insights into the role of AI in security-critical software development.
 
 ## License
 
