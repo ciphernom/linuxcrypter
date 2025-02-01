@@ -82,8 +82,6 @@ The tests cover scenarios such as:
 ├── encryption.c        # Encryption routines (implements PKCS#7 padding)
 ├── linuxcrypter.h      # Main header file with data structures and function prototypes
 ├── main.c              # Command-line interface and file I/O functions
-├── specforge.yaml      # The SpecForge YAML specification for LinuxCrypter
-├── specforge.py        # SpecForge tool used to process the YAML file
 └── README.md           # This file
 ```
 
