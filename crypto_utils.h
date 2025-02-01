@@ -1,48 +1,28 @@
 #ifndef CRYPTO_UTILS_H
 #define CRYPTO_UTILS_H
 
-#include "linuxcrypter.h"
+#include <stdint.h>
+#include <wmmintrin.h>  // AES-NI intrinsics
 
-/*------------------------------------------------------------
-    Utility Functions for Block Encryption/Decryption
---------------------------------------------------------------
-    These functions process 16-byte blocks using SIMD
-    instructions with inline assembly. In our implementation,
-    a simple XOR/addition “cipher” is used. In a production
-    system, AES-256 (or a similarly secure algorithm) would
-    be implemented (possibly via AES-NI).
---------------------------------------------------------------*/
+// Number of rounds for AES-256
+#define AES_256_ROUNDS 14
 
-/**
- * block_encrypt
- *
- * Encrypts a 16-byte block using the provided key.
- * The algorithm performs:
- *    temp = plaintext XOR key_block
- *    ciphertext = temp + constant_vector (byte-wise modulo addition)
- *
- * Inline assembly is used to perform SIMD operations.
- *
- * @param block   __m128i plaintext block.
- * @param key     Pointer to key (first 16 bytes used).
- * @return        __m128i encrypted block.
+/*
+ * Structure to hold expanded AES-256 key schedule
+ * Contains round keys for both encryption and decryption
  */
-__m128i block_encrypt(__m128i block, const uint8_t *key);
+typedef struct AESKeySchedule {
+    __m128i enc_keys[AES_256_ROUNDS + 1];  // Encryption round keys
+    __m128i dec_keys[AES_256_ROUNDS + 1];  // Decryption round keys
+    int initialized;
+} AESKeySchedule;
 
-/**
- * block_decrypt
- *
- * Decrypts a 16-byte block using the provided key.
- * This reverses the encryption operation:
- *    temp = ciphertext - constant_vector
- *    plaintext = temp XOR key_block
- *
- * Inline assembly is used to perform SIMD operations.
- *
- * @param block   __m128i ciphertext block.
- * @param key     Pointer to key (first 16 bytes used).
- * @return        __m128i decrypted block.
+/*
+ * Function prototypes
  */
-__m128i block_decrypt(__m128i block, const uint8_t *key);
+int init_aes_key_schedule(AESKeySchedule *schedule, const uint8_t *key);
+__m128i block_encrypt(__m128i block, const AESKeySchedule *schedule);
+__m128i block_decrypt(__m128i block, const AESKeySchedule *schedule);
+void cleanup_key_schedule(AESKeySchedule *schedule);
 
 #endif // CRYPTO_UTILS_H
